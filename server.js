@@ -133,6 +133,58 @@ app.get('/api/admin/stats', requireLogin, async (req, res) => {
     }
 });
 
+// --- 7. ADMIN MANAGEMENT APIS ---
+
+// 1. Dashboard Stats
+app.get('/api/admin/stats', requireLogin, async (req, res) => {
+    try {
+        const clients = await pool.query("SELECT * FROM clients ORDER BY id DESC");
+        const totalIds = await pool.query("SELECT COUNT(*) FROM identifiers");
+        res.json({ total: totalIds.rows[0].count, clients: clients.rows });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to fetch stats" });
+    }
+});
+
+// >>> YAHAN PASTE KAREIN (NEW CODE) <<<
+
+// 2. Get Global Identifiers List (For Identifiers Page)
+app.get('/api/admin/all-ids', requireLogin, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT i.*, c.name as journal_name 
+            FROM identifiers i 
+            JOIN clients c ON i.client_id = c.id 
+            ORDER BY i.created_at DESC`);
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Database Error:", err.message);
+        res.status(500).json({ error: "Database error" });
+    }
+});
+
+// 3. Get Specific Journal Detail (For Journal Detail Page)
+app.get('/api/admin/journal-history/:id', requireLogin, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT i.*, c.name as journal_name 
+            FROM identifiers i 
+            JOIN clients c ON i.client_id = c.id 
+            WHERE i.client_id = $1 
+            ORDER BY i.created_at DESC`, [req.params.id]);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// >>> PASTE KHATAM <<<
+
+// 4. Add a New Journal Client (Pehle se hoga aapke paas)
+app.post('/api/admin/add-client', requireLogin, async (req, res) => {
+    // ... aapka purana code
+});
+
 // Add a New Journal Client
 app.post('/api/admin/add-client', requireLogin, async (req, res) => {
     const { name, apiKey, balance } = req.body;
