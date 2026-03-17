@@ -124,24 +124,98 @@
 </div>
 
 <script>
+    // 1. Data load karne wala function (Table bharne ke liye)
     async function loadData() {
-        const res = await fetch('/api/admin/stats');
-        const data = await res.json();
-        document.getElementById('totalIds').innerText = data.total;
-        document.getElementById('totalClients').innerText = data.clients.length;
-        
-        const table = document.getElementById('clientTable');
-        table.innerHTML = "";
-        data.clients.forEach(c => {
-            table.innerHTML += `
-                <tr>
-                    <td class="fw-bold">${c.name}</td>
-                    <td><code class="text-primary">${c.api_key}</code></td>
-                    <td><span class="badge bg-${c.balance < 10 ? 'danger' : 'success'}">${c.balance} IDs</span></td>
-                    <td><button class="btn btn-sm btn-outline-primary"><i class="fas fa-edit"></i> Edit</button></td>
-                </tr>`;
-        });
+        try {
+            const res = await fetch('/api/admin/stats');
+            if (!res.ok) {
+                // Agar login nahi hai toh login page par bhej do
+                window.location.href = '/login.html';
+                return;
+            }
+            const data = await res.json();
+            
+            // Stats update karein
+            document.getElementById('totalIds').innerText = data.total || 0;
+            document.getElementById('totalClients').innerText = data.clients ? data.clients.length : 0;
+            
+            // Table update karein
+            const table = document.getElementById('clientTable');
+            table.innerHTML = "";
+            data.clients.forEach(c => {
+                table.innerHTML += `
+                    <tr>
+                        <td class="fw-bold">${c.name}</td>
+                        <td><code>${c.api_key}</code></td>
+                        <td><span class="badge bg-success">${c.balance} IDs</span></td>
+                        <td><button class="btn btn-sm btn-outline-primary">Edit</button></td>
+                    </tr>`;
+            });
+        } catch (err) {
+            console.error("Fetch error:", err);
+        }
     }
+
+    // 2. Client add karne wala button
+    async function addClient() {
+        const name = document.getElementById('newName').value;
+        const apiKey = document.getElementById('newKey').value;
+        const balance = document.getElementById('newBal').value;
+
+        if(!name || !apiKey || !balance) {
+            alert("Bhai, saari details bharo pehle!");
+            return;
+        }
+
+        const res = await fetch('/api/admin/add-client', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ name, apiKey, balance })
+        });
+
+        if(res.ok) {
+            alert("Journal Registered Successfully!");
+            // Form saaf karein
+            document.getElementById('newName').value = "";
+            document.getElementById('newKey').value = "";
+            document.getElementById('newBal').value = "";
+            loadData(); // Table refresh karein
+        } else {
+            alert("Galti hui: Client add nahi ho paya.");
+        }
+    }
+
+    // 3. ResearchID generate karne wala button
+    async function mintID() {
+        const apiKey = document.getElementById('mintKey').value;
+        const targetUrl = document.getElementById('mintUrl').value;
+        const title = document.getElementById('mintTitle').value;
+
+        if(!apiKey || !targetUrl) {
+            alert("API Key aur URL zaruri hain!");
+            return;
+        }
+
+        const res = await fetch('/api/mint', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ apiKey, targetUrl, title })
+        });
+
+        const data = await res.json();
+        if(data.success) {
+            const box = document.getElementById('resultBox');
+            box.style.display = 'block';
+            document.getElementById('finalID').innerText = window.location.origin + "/id/" + data.researchID;
+            loadData(); // Balance update karne ke liye
+        } else {
+            alert("Error: " + (data.error || "ID generate nahi hua"));
+        }
+    }
+
+    // Page load hote hi data mangwao
+    loadData();
+</script>
 
     async function addClient() {
         const payload = {
