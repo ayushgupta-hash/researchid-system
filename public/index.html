@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ResearchID Admin Panel</title>
+    <style>
+        body { font-family: sans-serif; padding: 50px; background: #f4f4f4; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background: #34495e; color: white; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Research Edge & Publication - Dashboard</h1>
+        <p>Total ResearchIDs Issued: <span id="totalIds">Loading...</span></p>
+        
+        <h3>Registered Journals (Clients)</h3>
+        <table id="clientTable">
+            <tr><th>Journal Name</th><th>Remaining Balance</th></tr>
+        </table>
+    </div>
+
+    <script>
+        fetch('/api/admin/stats')
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('totalIds').innerText = data.total_ids;
+                const table = document.getElementById('clientTable');
+                data.clients.forEach(c => {
+                    const row = `<tr><td>${c.name}</td><td>${c.balance} IDs</td></tr>`;
+                    table.innerHTML += row;
+                });
+            });
+    </script>
+</body>
+</html>
