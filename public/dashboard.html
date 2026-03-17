@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ResearchID | Admin Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #f8f9fa; }
+        .sidebar { background: #212529; min-height: 100vh; color: white; padding: 20px; }
+        .card { border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-radius: 12px; }
+        .btn-primary { background: #1a73e8; border: none; }
+    </style>
+</head>
+<body>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-2 sidebar">
+            <h3>RE Agency</h3>
+            <hr>
+            <p>Admin Mode</p>
+            <a href="/" class="btn btn-outline-light btn-sm w-100 mt-5">Logout</a>
+        </div>
+        <div class="col-md-10 p-5">
+            <h2 class="mb-4">Management Dashboard</h2>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card p-4 mb-4">
+                        <h5>Register New Journal</h5>
+                        <input type="text" id="newName" class="form-control mb-2" placeholder="Journal Name">
+                        <input type="text" id="newKey" class="form-control mb-2" placeholder="Assign API Key">
+                        <input type="number" id="newBal" class="form-control mb-2" placeholder="ID Balance">
+                        <button onclick="addClient()" class="btn btn-primary w-100">Add Client</button>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div class="card p-4">
+                        <h5>Issue New ResearchID</h5>
+                        <input type="text" id="mintKey" class="form-control mb-2" placeholder="Client API Key">
+                        <input type="url" id="mintUrl" class="form-control mb-2" placeholder="Paper/Article URL">
+                        <input type="text" id="mintTitle" class="form-control mb-2" placeholder="Paper Title">
+                        <button onclick="mintID()" class="btn btn-success w-100">Generate ResearchID</button>
+                        <div id="resultBox" class="alert alert-info mt-3" style="display:none"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="card p-4 mt-4">
+                <h5>Active Clients & Usage</h5>
+                <table class="table">
+                    <thead><tr><th>Journal</th><th>Key</th><th>Balance</th></tr></thead>
+                    <tbody id="clientTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    async function loadStats() {
+        const res = await fetch('/api/admin/stats');
+        const data = await res.json();
+        const table = document.getElementById('clientTable');
+        table.innerHTML = "";
+        data.clients.forEach(c => {
+            table.innerHTML += `<tr><td>${c.name}</td><td><code>${c.api_key}</code></td><td>${c.balance}</td></tr>`;
+        });
+    }
+    async function addClient() {
+        const payload = { name: document.getElementById('newName').value, apiKey: document.getElementById('newKey').value, balance: document.getElementById('newBal').value };
+        await fetch('/api/admin/add-client', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+        alert("Client Added!"); loadStats();
+    }
+    async function mintID() {
+        const payload = { apiKey: document.getElementById('mintKey').value, targetUrl: document.getElementById('mintUrl').value, title: document.getElementById('mintTitle').value };
+        const res = await fetch('/api/mint', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+        const data = await res.json();
+        if(data.success) {
+            const box = document.getElementById('resultBox');
+            box.style.display = 'block';
+            box.innerText = "ID Generated: " + window.location.origin + "/id/" + data.researchID;
+            loadStats();
+        }
+    }
+    loadStats();
+</script>
+</body>
+</html>
