@@ -1,133 +1,47 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ResearchID | Management Dashboard</title>
+    <title>Research Edge & Publication | Home</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        :root { --sidebar-width: 250px; --primary-color: #0d6efd; }
-        body { background-color: #f4f7f6; font-family: 'Segoe UI', sans-serif; }
-        .sidebar { width: var(--sidebar-width); height: 100vh; position: fixed; background: #212529; color: white; padding: 20px; }
-        .main-content { margin-left: var(--sidebar-width); padding: 40px; }
-        .sidebar-link { color: #adb5bd; text-decoration: none; display: block; padding: 10px; border-radius: 5px; margin-bottom: 5px; }
-        .sidebar-link:hover, .sidebar-link.active { background: #343a40; color: white; }
-        .card { border: none; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); border-radius: 10px; }
-        .form-label { font-weight: 600; color: #495057; }
-        .id-badge { background: #e9ecef; padding: 10px; border-radius: 5px; font-family: monospace; border: 1px dashed #dee2e6; }
+        .hero { background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('https://source.unsplash.com/1600x900/?science,library'); 
+                height: 80vh; color: white; display: flex; align-items: center; justify-content: center; text-align: center; }
     </style>
 </head>
 <body>
-
-<div class="sidebar">
-    <h4 class="mb-4"><i class="fas fa-microscope me-2"></i>Research Edge</h4>
-    <hr>
-    <a href="#" class="sidebar-link active"><i class="fas fa-plus-circle me-2"></i> New Identifier</a>
-    <a href="#" class="sidebar-link" onclick="location.reload()"><i class="fas fa-list me-2"></i> Identifiers List</a>
-    <a href="#" class="sidebar-link"><i class="fas fa-users me-2"></i> Manage Clients</a>
-    <a href="#" class="sidebar-link"><i class="fas fa-cog me-2"></i> Settings</a>
-</div>
-
-<div class="main-content">
-    <div class="container-fluid">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2>Register New Identifier</h2>
-            <div id="statsBox" class="text-muted">Total Issued: <span class="badge bg-primary" id="totalCount">0</span></div>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">Research Edge</a>
+            <a href="/login.html" class="btn btn-primary">Client Login</a>
         </div>
+    </nav>
 
-        <div class="row">
-            <div class="col-md-8">
-                <div class="card p-4">
-                    <div class="mb-3">
-                        <label class="form-label">Client API Key</label>
-                        <input type="text" id="mintKey" class="form-control" placeholder="Select or enter Client Key">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Publication Title</label>
-                        <input type="text" id="mintTitle" class="form-control" placeholder="The title of the research paper or dataset">
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Target URL (Landing Page)</label>
-                        <input type="url" id="mintUrl" class="form-control" placeholder="https://yourjournal.com/article/123">
-                        <small class="text-muted">Where the ResearchID will redirect the user.</small>
-                    </div>
-
-                    <button class="btn btn-primary btn-lg mt-3" onclick="mintID()">
-                        <i class="fas fa-check-circle me-2"></i> Generate ResearchID
-                    </button>
-
-                    <div id="resultBox" class="mt-4" style="display: none;">
-                        <div class="alert alert-success">
-                            <strong>Success!</strong> Your identifier has been registered.
-                            <div class="id-badge mt-2" id="finalID"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-4">
-                <div class="card p-4">
-                    <h5><i class="fas fa-info-circle me-2"></i> Information</h5>
-                    <p class="small text-muted">Identifiers are permanent. Once registered, the ResearchID will resolve globally via your platform.</p>
-                    <hr>
-                    <h6>Recent Clients</h6>
-                    <ul class="list-group list-group-flush" id="clientTable">
-                        </ul>
-                </div>
+    <div class="hero">
+        <div class="container">
+            <h1 class="display-3">Global ResearchID Provider</h1>
+            <p class="lead">Affordable, Permanent, and Secure Identifiers for Journals and Researchers.</p>
+            <div class="mt-4">
+                <a href="#about" class="btn btn-outline-light btn-lg">Learn More</a>
+                <a href="/login.html" class="btn btn-primary btn-lg ms-2">Get Started</a>
             </div>
         </div>
     </div>
-</div>
 
-<script>
-    async function loadData() {
-        const res = await fetch('/api/admin/stats');
-        const data = await res.json();
-        document.getElementById('totalCount').innerText = data.total;
-        const list = document.getElementById('clientTable');
-        list.innerHTML = "";
-        data.clients.forEach(c => {
-            list.innerHTML += `<li class="list-group-item d-flex justify-content-between align-items-center">
-                ${c.name} <span class="badge bg-secondary rounded-pill">${c.balance}</span>
-            </li>`;
-        });
-    }
-
-    async function mintID() {
-        const btn = event.target;
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating...';
-
-        const payload = {
-            apiKey: document.getElementById('mintKey').value,
-            targetUrl: document.getElementById('mintUrl').value,
-            title: document.getElementById('mintTitle').value
-        };
-
-        const res = await fetch('/api/mint', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
-        });
-
-        const data = await res.json();
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-check-circle me-2"></i> Generate ResearchID';
-
-        if(data.success) {
-            document.getElementById('resultBox').style.display = 'block';
-            document.getElementById('finalID').innerText = window.location.origin + "/id/" + data.researchID;
-            loadData();
-        } else {
-            alert("Error: " + data.error);
-        }
-    }
-
-    loadData();
-</script>
-
+    <div class="container py-5" id="about">
+        <div class="row text-center">
+            <div class="col-md-4">
+                <h3>Permanent Links</h3>
+                <p>Never worry about 404 errors again. Our ResearchIDs are for life.</p>
+            </div>
+            <div class="col-md-4">
+                <h3>Metadata Support</h3>
+                <p>Every ID carries rich metadata about the author and publication.</p>
+            </div>
+            <div class="col-md-4">
+                <h3>Instant Minting</h3>
+                <p>Generate IDs in seconds via our user-friendly dashboard or API.</p>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
