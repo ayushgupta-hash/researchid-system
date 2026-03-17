@@ -1,0 +1,15 @@
+<script>
+    // Ye logic page ke script section mein dalna
+    const urlParams = new URLSearchParams(window.location.search);
+    const journalId = urlParams.get('id');
+
+    async function loadJournalDetails() {
+        // Humne abhi API server.js mein detail wali add nahi ki thi 
+        // lekin stats wali API se hi hum filter kar sakte hain client side par
+        const res = await fetch('/api/admin/all-ids');
+        const allData = await res.json();
+        
+        const journalData = allData.filter(id => id.client_id == journalId);
+        // Is data ko table mein render kar dein...
+    }
+</script>
