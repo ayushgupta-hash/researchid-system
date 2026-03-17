@@ -4,40 +4,77 @@
     <meta charset="UTF-8">
     <title>Journal History | RE Agency</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        body { background: #f0f2f5; padding: 40px; }
-        .container { background: white; padding: 30px; border-radius: 15px; }
+        body { background: #f0f2f5; font-family: 'Inter', sans-serif; padding: 40px; }
+        .container { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .badge-id { background: #e8f0fe; color: #1a73e8; font-weight: bold; padding: 5px 10px; border-radius: 5px; }
     </style>
 </head>
 <body>
-    <div class="container shadow-sm">
-        <a href="/journals" class="btn btn-sm btn-secondary mb-3">← Back to Journals</a>
-        <h2 id="jName">Loading Journal...</h2>
-        <hr>
-        <h5>Issued ResearchIDs</h5>
-        <table class="table mt-3">
-            <thead><tr><th>ID</th><th>Title</th><th>Date</th></tr></thead>
-            <tbody id="papersList"></tbody>
-        </table>
+
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <a href="/journals" class="btn btn-outline-secondary btn-sm mb-2"><i class="fas fa-arrow-left"></i> Back to Journals</a>
+            <h2 id="journalName">Loading Journal...</h2>
+        </div>
+        <div class="text-end">
+            <span class="badge bg-primary" id="paperCount">0 Papers</span>
+        </div>
     </div>
 
-    <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const jId = urlParams.get('id');
+    <table class="table table-hover">
+        <thead class="table-light">
+            <tr>
+                <th>ResearchID</th>
+                <th>Paper Title</th>
+                <th>Target URL</th>
+                <th>Date Issued</th>
+            </tr>
+        </thead>
+        <tbody id="historyTableBody">
+            </tbody>
+    </table>
+</div>
 
-        async function loadHistory() {
-            const res = await fetch('/api/admin/all-ids');
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const jId = urlParams.get('id');
+
+    async function loadJournalHistory() {
+        if(!jId) return alert("No Journal Selected");
+
+        try {
+            const res = await fetch(`/api/admin/journal-history/${jId}`);
             const data = await res.json();
-            const filtered = data.filter(item => item.client_id == jId);
-            
-            if(filtered.length > 0) document.getElementById('jName').innerText = filtered[0].journal_name;
-            
-            const list = document.getElementById('papersList');
-            filtered.forEach(p => {
-                list.innerHTML += `<tr><td>${p.identifier}</td><td>${JSON.parse(p.metadata).title || 'N/A'}</td><td>${new Date(p.created_at).toLocaleDateString()}</td></tr>`;
+
+            if(data.length > 0) {
+                document.getElementById('journalName').innerText = data[0].journal_name;
+                document.getElementById('paperCount').innerText = `${data.length} Papers Found`;
+            } else {
+                document.getElementById('journalName').innerText = "No Records Found";
+            }
+
+            const tbody = document.getElementById('historyTableBody');
+            tbody.innerHTML = "";
+
+            data.forEach(p => {
+                const metadata = p.metadata || {};
+                tbody.innerHTML += `
+                    <tr>
+                        <td><span class="badge-id">${p.identifier}</span></td>
+                        <td>${metadata.title || 'Untitled Paper'}</td>
+                        <td><a href="${p.target_url}" target="_blank" class="small text-truncate d-inline-block" style="max-width:200px;">${p.target_url}</a></td>
+                        <td>${new Date(p.created_at).toLocaleDateString()}</td>
+                    </tr>`;
             });
+        } catch (err) {
+            console.error(err);
         }
-        loadHistory();
-    </script>
+    }
+
+    loadJournalHistory();
+</script>
 </body>
 </html>
