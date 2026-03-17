@@ -28,7 +28,7 @@
     <a href="#" class="nav-link"><i class="fas fa-fingerprint me-2"></i> All Identifiers</a>
     <a href="#" class="nav-link"><i class="fas fa-file-invoice-dollar me-2"></i> Billing</a>
     <div style="position: absolute; bottom: 30px; width: 80%;">
-        <a href="/" class="btn btn-outline-danger w-100">Sign Out</a>
+        <a href="/api/logout" class="btn btn-outline-danger w-100">Sign Out</a>
     </div>
 </div>
 
@@ -75,7 +75,7 @@
                     <label class="form-label small fw-bold">Prepaid Credits (IDs)</label>
                     <input type="number" id="newBal" class="form-control bg-light" placeholder="100">
                 </div>
-                <button onclick="addClient()" class="btn btn-primary w-100">Authorize & Save Client</button>
+                <button onclick="addClient()" id="addBtn" class="btn btn-primary w-100">Authorize & Save Client</button>
             </div>
         </div>
 
@@ -96,7 +96,7 @@
                     <label class="form-label small fw-bold">Target URL (Landing Page)</label>
                     <input type="url" id="mintUrl" class="form-control" placeholder="https://journal.com/article/1">
                 </div>
-                <button onclick="mintID()" class="btn btn-success w-100">Mint Global ResearchID</button>
+                <button onclick="mintID()" id="mintBtn" class="btn btn-success w-100">Mint Global ResearchID</button>
                 <div id="resultBox" class="alert alert-success mt-3" style="display:none; border-left: 5px solid #198754;">
                     <small>ID successfully registered:</small><br>
                     <strong id="finalID" class="user-select-all"></strong>
@@ -124,134 +124,98 @@
 </div>
 
 <script>
-    // 1. Data load karne wala function (Table bharne ke liye)
+    // 1. Data load function
     async function loadData() {
         try {
             const res = await fetch('/api/admin/stats');
             if (!res.ok) {
-                // Agar login nahi hai toh login page par bhej do
                 window.location.href = '/login.html';
                 return;
             }
             const data = await res.json();
-            
-            // Stats update karein
             document.getElementById('totalIds').innerText = data.total || 0;
             document.getElementById('totalClients').innerText = data.clients ? data.clients.length : 0;
             
-            // Table update karein
             const table = document.getElementById('clientTable');
             table.innerHTML = "";
-            data.clients.forEach(c => {
-                table.innerHTML += `
-                    <tr>
-                        <td class="fw-bold">${c.name}</td>
-                        <td><code>${c.api_key}</code></td>
-                        <td><span class="badge bg-success">${c.balance} IDs</span></td>
-                        <td><button class="btn btn-sm btn-outline-primary">Edit</button></td>
-                    </tr>`;
-            });
+            if(data.clients) {
+                data.clients.forEach(c => {
+                    table.innerHTML += `
+                        <tr>
+                            <td class="fw-bold">${c.name}</td>
+                            <td><code>${c.api_key}</code></td>
+                            <td><span class="badge bg-success">${c.balance} IDs</span></td>
+                            <td><button class="btn btn-sm btn-outline-primary">Edit</button></td>
+                        </tr>`;
+                });
+            }
         } catch (err) {
             console.error("Fetch error:", err);
         }
     }
 
-    // 2. Client add karne wala button
+    // 2. Add Client function
     async function addClient() {
         const name = document.getElementById('newName').value;
         const apiKey = document.getElementById('newKey').value;
         const balance = document.getElementById('newBal').value;
 
-        if(!name || !apiKey || !balance) {
-            alert("Bhai, saari details bharo pehle!");
-            return;
-        }
+        if(!name || !apiKey || !balance) return alert("Please fill all fields!");
 
-        const res = await fetch('/api/admin/add-client', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ name, apiKey, balance })
-        });
+        const btn = document.getElementById('addBtn');
+        btn.disabled = true;
 
-        if(res.ok) {
-            alert("Journal Registered Successfully!");
-            // Form saaf karein
-            document.getElementById('newName').value = "";
-            document.getElementById('newKey').value = "";
-            document.getElementById('newBal').value = "";
-            loadData(); // Table refresh karein
-        } else {
-            alert("Galti hui: Client add nahi ho paya.");
-        }
+        try {
+            const res = await fetch('/api/admin/add-client', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ name, apiKey, balance })
+            });
+
+            if(res.ok) {
+                alert("Journal Registered!");
+                document.getElementById('newName').value = "";
+                document.getElementById('newKey').value = "";
+                document.getElementById('newBal').value = "";
+                loadData();
+            } else {
+                alert("Failed to add client.");
+            }
+        } catch(e) { alert("Server Error"); }
+        btn.disabled = false;
     }
 
-    // 3. ResearchID generate karne wala button
+    // 3. Mint ID function
     async function mintID() {
         const apiKey = document.getElementById('mintKey').value;
         const targetUrl = document.getElementById('mintUrl').value;
         const title = document.getElementById('mintTitle').value;
 
-        if(!apiKey || !targetUrl) {
-            alert("API Key aur URL zaruri hain!");
-            return;
-        }
+        if(!apiKey || !targetUrl) return alert("Key and URL are required!");
 
-        const res = await fetch('/api/mint', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ apiKey, targetUrl, title })
-        });
+        const btn = document.getElementById('mintBtn');
+        btn.disabled = true;
 
-        const data = await res.json();
-        if(data.success) {
-            const box = document.getElementById('resultBox');
-            box.style.display = 'block';
-            document.getElementById('finalID').innerText = window.location.origin + "/id/" + data.researchID;
-            loadData(); // Balance update karne ke liye
-        } else {
-            alert("Error: " + (data.error || "ID generate nahi hua"));
-        }
+        try {
+            const res = await fetch('/api/mint', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ apiKey, targetUrl, title })
+            });
+
+            const data = await res.json();
+            if(data.success) {
+                document.getElementById('resultBox').style.display = 'block';
+                document.getElementById('finalID').innerText = window.location.origin + "/id/" + data.researchID;
+                loadData();
+            } else {
+                alert("Error: " + (data.error || "Check balance or key"));
+            }
+        } catch(e) { alert("Server Error"); }
+        btn.disabled = false;
     }
 
-    // Page load hote hi data mangwao
-    loadData();
-</script>
-
-    async function addClient() {
-        const payload = {
-            name: document.getElementById('newName').value,
-            apiKey: document.getElementById('newKey').value,
-            balance: document.getElementById('newBal').value
-        };
-        const res = await fetch('/api/admin/add-client', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
-        });
-        if(res.ok) { alert("Client Registered Successfully!"); loadData(); }
-    }
-
-    async function mintID() {
-        const payload = {
-            apiKey: document.getElementById('mintKey').value,
-            targetUrl: document.getElementById('mintUrl').value,
-            title: document.getElementById('mintTitle').value
-        };
-        const res = await fetch('/api/mint', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if(data.success) {
-            const box = document.getElementById('resultBox');
-            box.style.display = 'block';
-            document.getElementById('finalID').innerText = window.location.origin + "/id/" + data.researchID;
-            loadData();
-        } else {
-            alert("Error: " + data.error);
-        }
-    }
+    // Initial load
     loadData();
 </script>
 </body>
