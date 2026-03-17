@@ -6,17 +6,20 @@ require('dotenv').config();
 
 const app = express();
 
-// --- 1. MIDDLEWARES ---
+// --- 1. CONFIGURATION & MIDDLEWARES ---
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
-// Session management
+// Secure Session Management
 app.use(session({
-    secret: 'research-edge-secret-7788',
+    secret: 'research-edge-mega-secret-2024',
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false } // Free Render tier ke liye false rakhein
+    cookie: { 
+        maxAge: 24 * 60 * 60 * 1000, // 24 Hours
+        secure: false // Set to true if using HTTPS
+    }
 }));
 
 // --- 2. DATABASE CONNECTION ---
@@ -25,20 +28,20 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// --- 3. AUTO DATABASE INITIALIZATION ---
+// --- 3. DATABASE INITIALIZATION (Auto-Migrate) ---
 const initDB = async () => {
+    console.log("⏳ Initializing Database...");
     try {
-        // Table: Clients (Journals)
-        await pool.query(`
+        const clientTable = `
             CREATE TABLE IF NOT EXISTS clients (
                 id SERIAL PRIMARY KEY,
                 name TEXT NOT NULL,
                 api_key TEXT UNIQUE NOT NULL,
-                balance INTEGER DEFAULT 0
-            );
-        `);
-        // Table: Identifiers (ResearchIDs)
-        await pool.query(`
+                balance INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );`;
+
+        const idTable = `
             CREATE TABLE IF NOT EXISTS identifiers (
                 id SERIAL PRIMARY KEY,
                 identifier TEXT UNIQUE NOT NULL,
@@ -46,134 +49,200 @@ const initDB = async () => {
                 client_id INTEGER REFERENCES clients(id),
                 metadata JSONB,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-        console.log("✅ Database Tables Verified & Ready!");
+            );`;
+
+        await pool.query(clientTable);
+        await pool.query(idTable);
+        console.log("✅ Database Tables Verified & Ready.");
     } catch (err) {
-        console.error("❌ DB Init Error:", err);
+        console.error("❌ Database Init Error:", err.message);
     }
 };
 initDB();
 
-// --- 4. AUTHENTICATION ROUTES ---
+// --- 4. AUTHENTICATION HELPERS ---
+const requireLogin = (req, res, next) => {
+    if (req.session.isLoggedIn) {
+        next();
+    } else {
+        if (req.path.startsWith('/api/')) {
+            res.status(401).json({ error: "Unauthorized Access" });
+        } else {
+            res.redirect('/login.html');
+        }
+    }
+};
 
-// Login API
+// --- 5. PAGE NAVIGATION ROUTES ---
+
+app.get('/', (req, res) => {
+    res.redirect('/dashboard');
+});
+
+app.get('/dashboard', requireLogin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
+app.get('/journals', requireLogin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'journals.html'));
+});
+
+app.get('/identifiers', requireLogin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'identifiers.html'));
+});
+
+app.get('/journal-detail', requireLogin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'journal-detail.html'));
+});
+
+app.get('/billing', requireLogin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'billing.html'));
+});
+
+// --- 6. AUTHENTICATION APIS ---
+
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
-    // Aap yahan password badal sakte hain
+    // Hardcoded for now, can be moved to DB later
     if (username === 'admin' && password === 'admin123') {
         req.session.isLoggedIn = true;
         res.json({ success: true });
     } else {
-        res.status(401).json({ success: false, message: "Invalid Credentials" });
+        res.status(401).json({ success: false, message: "Invalid credentials" });
     }
 });
 
-// Logout API
 app.get('/api/logout', (req, res) => {
     req.session.destroy();
     res.redirect('/login.html');
 });
 
-// --- 5. PAGE ROUTES (Fixing "Cannot GET /dashboard") ---
+// --- 7. ADMIN MANAGEMENT APIS ---
 
-app.get('/dashboard', (req, res) => {
-    if (req.session.isLoggedIn) {
-        res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-    } else {
-        res.redirect('/login.html');
-    }
-});
-
-// --- 6. ADMIN API ROUTES ---
-
-// Get Stats and Client List
-app.get('/api/admin/stats', async (req, res) => {
-    if (!req.session.isLoggedIn) return res.status(401).send("Unauthorized");
+// Get Overview Stats
+app.get('/api/admin/stats', requireLogin, async (req, res) => {
     try {
         const clients = await pool.query("SELECT * FROM clients ORDER BY id DESC");
-        const total = await pool.query("SELECT COUNT(*) FROM identifiers");
+        const totalIds = await pool.query("SELECT COUNT(*) FROM identifiers");
         res.json({ 
-            total: total.rows[0].count, 
+            total: totalIds.rows[0].count, 
             clients: clients.rows 
         });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Failed to fetch stats" });
     }
 });
 
-// Add New Client/Journal
-app.post('/api/admin/add-client', async (req, res) => {
-    if (!req.session.isLoggedIn) return res.status(401).send("Unauthorized");
+// Add a New Journal Client
+app.post('/api/admin/add-client', requireLogin, async (req, res) => {
     const { name, apiKey, balance } = req.body;
     try {
-        await pool.query(
-            "INSERT INTO clients (name, api_key, balance) VALUES ($1, $2, $3)", 
-            [name, apiKey, balance]
+        const result = await pool.query(
+            "INSERT INTO clients (name, api_key, balance) VALUES ($1, $2, $3) RETURNING *",
+            [name, apiKey, balance || 0]
         );
-        res.json({ success: true });
+        res.json({ success: true, client: result.rows[0] });
     } catch (err) {
-        res.status(500).json({ error: "API Key already exists or DB Error" });
+        res.status(500).json({ error: "Duplicate API Key or Database Error" });
     }
 });
 
-// --- 7. MINTING LOGIC (The Core Business) ---
+// Credit Top-up System
+app.post('/api/admin/topup', requireLogin, async (req, res) => {
+    const { clientId, amount } = req.body;
+    try {
+        await pool.query(
+            "UPDATE clients SET balance = balance + $1 WHERE id = $2",
+            [amount, clientId]
+        );
+        res.json({ success: true, message: "Credits Added Successfully" });
+    } catch (err) {
+        res.status(500).json({ error: "Top-up failed" });
+    }
+});
+
+// --- 8. RESEARCH ID CORE LOGIC (MINTING) ---
 
 app.post('/api/mint', async (req, res) => {
     const { apiKey, targetUrl, title } = req.body;
+    
+    if (!apiKey || !targetUrl) {
+        return res.status(400).json({ error: "API Key and Target URL are required" });
+    }
+
     try {
-        // Check if client exists and has balance
-        const clientRes = await pool.query("SELECT * FROM clients WHERE api_key = $1", [apiKey]);
-        const client = clientRes.rows[0];
+        // 1. Verify Client
+        const clientCheck = await pool.query("SELECT * FROM clients WHERE api_key = $1", [apiKey]);
+        const client = clientCheck.rows[0];
 
-        if (client && parseInt(client.balance) > 0) {
-            const countRes = await pool.query("SELECT COUNT(*) FROM identifiers");
-            const nextNum = parseInt(countRes.rows[0].count) + 1;
-            const newID = `10.1001/RE${String(nextNum).padStart(6, '0')}`;
+        if (!client) return res.status(403).json({ error: "Invalid API Key" });
+        if (parseInt(client.balance) <= 0) return res.status(403).json({ error: "Insufficient Credits" });
 
-            // Atomic Transaction
-            await pool.query('BEGIN');
-            await pool.query(
-                "INSERT INTO identifiers (identifier, target_url, client_id, metadata) VALUES ($1, $2, $3, $4)",
-                [newID, targetUrl, client.id, JSON.stringify({ title })]
-            );
-            await pool.query("UPDATE clients SET balance = balance - 1 WHERE id = $1", [client.id]);
-            await pool.query('COMMIT');
+        // 2. Generate New Unique ID
+        const countRes = await pool.query("SELECT COUNT(*) FROM identifiers");
+        const newSerial = parseInt(countRes.rows[0].count) + 1;
+        const researchID = `10.1001/RE${String(newSerial).padStart(6, '0')}`;
 
-            res.json({ success: true, researchID: newID });
-        } else {
-            res.status(403).json({ error: "Insufficient Balance or Invalid API Key" });
-        }
+        // 3. Database Transaction (Atomic)
+        await pool.query('BEGIN');
+        
+        await pool.query(
+            "INSERT INTO identifiers (identifier, target_url, client_id, metadata) VALUES ($1, $2, $3, $4)",
+            [researchID, targetUrl, client.id, JSON.stringify({ title, date: new Date() })]
+        );
+
+        await pool.query(
+            "UPDATE clients SET balance = balance - 1 WHERE id = $1",
+            [client.id]
+        );
+
+        await pool.query('COMMIT');
+
+        res.json({ success: true, researchID: researchID });
+
     } catch (err) {
         if (pool) await pool.query('ROLLBACK');
-        res.status(500).json({ error: err.message });
+        console.error("Minting Error:", err);
+        res.status(500).json({ error: "Internal Server Error during minting" });
     }
 });
 
-// --- 8. PUBLIC RESOLVER (Redirects the ResearchID) ---
+// --- 9. PUBLIC RESOLVER (THE LINK HANDLER) ---
 
 app.get('/id/:prefix/:suffix', async (req, res) => {
     const fullID = `${req.params.prefix}/${req.params.suffix}`;
     try {
-        const result = await pool.query("SELECT target_url FROM identifiers WHERE identifier = $1", [fullID]);
+        const result = await pool.query(
+            "SELECT target_url FROM identifiers WHERE identifier = $1", 
+            [fullID]
+        );
+
         if (result.rows.length > 0) {
+            // Redirect to the actual research paper
             res.redirect(result.rows[0].target_url);
         } else {
             res.status(404).send(`
-                <body style="font-family:sans-serif; text-align:center; padding:50px;">
-                    <h1>404 - ResearchID Not Found</h1>
-                    <p>The identifier ${fullID} is not registered in our system.</p>
-                    <a href="/">Back to Home</a>
-                </body>
+                <div style="text-align:center; margin-top:100px; font-family:sans-serif;">
+                    <h1 style="color:#d93025;">404 - ResearchID Not Found</h1>
+                    <p>The ID <b>${fullID}</b> is not registered in the RE Agency database.</p>
+                    <hr style="width:200px;">
+                    <p><small>Powered by Research Edge Agency</small></p>
+                </div>
             `);
         }
     } catch (err) {
-        res.status(500).send("Database Error");
+        res.status(500).send("System Resolver Error");
     }
 });
 
-// --- 9. SERVER START ---
+// --- 10. SERVER BOOT ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`🚀 RE Agency Server running on port ${PORT}`);
+    console.log(`
+    🚀============================================🚀
+       SERVER RUNNING ON PORT: ${PORT}
+       DATABASE: POSTGRESQL (CONNECTED)
+       MODE: PRODUCTION / MODULAR
+    🚀============================================🚀
+    `);
 });
